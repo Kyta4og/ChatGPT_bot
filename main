@@ -1,0 +1,45 @@
+import openai
+import telebot
+from telebot import types
+
+with open(r'D:\Apis.txt', 'r', encoding='utf-8') as file:
+    openai_api, tg_api = [l.strip() for l in file.readlines()]
+
+openai.api_key = openai_api
+bot = telebot.TeleBot(tg_api)
+requests_count = {}
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    keyboard = types.InlineKeyboardMarkup()
+    buy_button = types.InlineKeyboardButton(text='Купить премиум', callback_data='buy_premium')
+    keyboard.add(buy_button)
+    bot.reply_to(message, "Привет! Я ChatGPT - бот, который может ответить на твои вопросы. Но у меня есть лимит в 3 запроса в день. Если тебе нужен неограниченный доступ, купи премиум-доступ.", reply_markup=keyboard)
+
+@bot.message_handler(commands=['help'])
+def send_help(message):
+    bot.reply_to(message, "Отправь мне свой вопрос, и я постараюсь на него ответить. Но помни, что у меня есть лимит в 3 запроса в день. Если тебе нужен неограниченный доступ, купи премиум-доступ.")
+
+@bot.message_handler(func=lambda message: True)
+def get_response(message):
+    if message.chat.id in requests_count:
+        count = requests_count[message.chat.id]
+        if count >= 10:
+            bot.reply_to(message, "Вы исчерпали лимит запросов на сегодня. Купите премиум-доступ, чтобы получить неограниченный доступ.")
+            return
+        else:
+            requests_count[message.chat.id] += 1
+    else:
+        requests_count[message.chat.id] = 1
+
+    response = openai.Completion.create(
+        engine="davinci",
+        prompt=message.text,
+        max_tokens=100,
+        n=1,
+        stop=None,
+        temperature=0.7,
+    )
+    bot.reply_to(message, response.choices[0].text)
+
+bot.polling()
